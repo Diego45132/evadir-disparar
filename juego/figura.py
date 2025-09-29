@@ -91,20 +91,87 @@ class Figura:
         """
         Dibuja la figura en la pantalla si está activa.
 
-        Utiliza pygame.draw.circle para renderizar un círculo con las propiedades
-        actuales de la figura. Solo se dibuja si la figura está marcada como activa.
+        Dibuja un avión realista usando múltiples formas geométricas.
+        Solo se dibuja si la figura está marcada como activa.
 
         Notes
         -----
         Las coordenadas se convierten a enteros para compatibilidad con pygame.
         """
         if self.activo:
-            pygame.draw.circle(
-                self.pantalla, 
-                self.color,
-                (int(self.posicion.x), int(self.posicion.y)), 
-                self.radio
-            )
+            x = int(self.posicion.x)
+            y = int(self.posicion.y)
+            radio = self.radio
+            
+            # Determinar si es enemigo o jugador
+            es_enemigo = hasattr(self, 'objetivo')
+            
+            if es_enemigo:
+                # Avión enemigo (apunta hacia abajo)
+                self._dibujar_avion_enemigo(x, y, radio)
+            else:
+                # Avión jugador (apunta hacia arriba)
+                self._dibujar_avion_jugador(x, y, radio)
+    
+    def _dibujar_avion_jugador(self, x: int, y: int, radio: int) -> None:
+        """Dibuja un avión del jugador realista apuntando hacia arriba."""
+        # Color principal y secundario
+        color_principal = self.color
+        color_secundario = tuple(max(0, c - 80) for c in self.color)
+        color_detalle = tuple(max(0, c - 120) for c in self.color)
+        
+        # Fuselaje principal (cuerpo del avión)
+        pygame.draw.ellipse(self.pantalla, color_principal, 
+                           (x - radio//3, y - radio//2, radio*2//3, radio))
+        
+        # Ala principal (horizontal)
+        pygame.draw.ellipse(self.pantalla, color_principal,
+                           (x - radio//2, y - radio//6, radio, radio//3))
+        
+        # Ala trasera (más pequeña)
+        pygame.draw.ellipse(self.pantalla, color_secundario,
+                           (x - radio//3, y + radio//4, radio*2//3, radio//4))
+        
+        # Cabina (círculo pequeño)
+        pygame.draw.circle(self.pantalla, color_secundario, (x, y - radio//4), radio//4)
+        
+        # Motor/escape (rectángulo pequeño)
+        pygame.draw.rect(self.pantalla, color_detalle,
+                        (x - radio//6, y + radio//3, radio//3, radio//6))
+        
+        # Detalles de las alas
+        pygame.draw.line(self.pantalla, color_detalle, 
+                        (x - radio//2, y), (x + radio//2, y), 2)
+    
+    def _dibujar_avion_enemigo(self, x: int, y: int, radio: int) -> None:
+        """Dibuja un avión enemigo realista apuntando hacia abajo."""
+        # Color principal y secundario
+        color_principal = self.color
+        color_secundario = tuple(max(0, c - 80) for c in self.color)
+        color_detalle = tuple(max(0, c - 120) for c in self.color)
+        
+        # Fuselaje principal (cuerpo del avión)
+        pygame.draw.ellipse(self.pantalla, color_principal, 
+                           (x - radio//3, y - radio//2, radio*2//3, radio))
+        
+        # Ala principal (horizontal)
+        pygame.draw.ellipse(self.pantalla, color_principal,
+                           (x - radio//2, y - radio//6, radio, radio//3))
+        
+        # Ala trasera (más pequeña)
+        pygame.draw.ellipse(self.pantalla, color_secundario,
+                           (x - radio//3, y - radio//4, radio*2//3, radio//4))
+        
+        # Cabina (círculo pequeño)
+        pygame.draw.circle(self.pantalla, color_secundario, (x, y + radio//4), radio//4)
+        
+        # Motor/escape (rectángulo pequeño)
+        pygame.draw.rect(self.pantalla, color_detalle,
+                        (x - radio//6, y - radio//3, radio//3, radio//6))
+        
+        # Detalles de las alas
+        pygame.draw.line(self.pantalla, color_detalle, 
+                        (x - radio//2, y), (x + radio//2, y), 2)
 
     def colision(self, otro: 'Figura') -> bool:
         """

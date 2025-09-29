@@ -77,7 +77,7 @@ class Proyectil(Figura):
             raise ValueError("La velocidad debe ser un valor positivo")
 
         # Inicializar como figura amarilla pequeña
-        super().__init__(pantalla, x, y, (255, 255, 0), 5)
+        super().__init__(pantalla, x, y, (255, 255, 0), 8)
         
         self.velocidad = float(velocidad)
         self.direccion = direccion.normalizar()  # Vector unitario
@@ -157,6 +157,83 @@ class Proyectil(Figura):
         # Desactivar si se cumple alguna condición
         if fuera_de_pantalla or tiempo_agotado:
             self.activo = False
+    
+    def pintar(self) -> None:
+        """
+        Dibuja el proyectil como un misil realista en la pantalla.
+        
+        Override del método pintar de la clase base para dibujar un misil
+        que apunta en la dirección de movimiento con detalles realistas.
+        """
+        if self.activo:
+            x = int(self.posicion.x)
+            y = int(self.posicion.y)
+            radio = self.radio
+            
+            # Colores para el misil
+            color_principal = self.color  # Amarillo
+            color_secundario = tuple(max(0, c - 50) for c in self.color)  # Amarillo oscuro
+            color_detalle = tuple(max(0, c - 100) for c in self.color)  # Naranja
+            
+            # Calcular dirección del misil basada en la dirección de movimiento
+            if self.direccion.magnitud() > 0:
+                # Normalizar dirección para obtener ángulo
+                dir_normalizada = self.direccion.normalizar()
+                
+                # Cuerpo principal del misil (elipse alargada)
+                cuerpo_longitud = radio * 2
+                cuerpo_ancho = radio
+                
+                # Calcular posición del cuerpo
+                centro_x = x - int(dir_normalizada.x * radio//2)
+                centro_y = y - int(dir_normalizada.y * radio//2)
+                
+                # Dibujar cuerpo del misil
+                pygame.draw.ellipse(self.pantalla, color_principal,
+                                  (centro_x - cuerpo_longitud//2, centro_y - cuerpo_ancho//2,
+                                   cuerpo_longitud, cuerpo_ancho))
+                
+                # Punta del misil (cono)
+                punta_x = x + int(dir_normalizada.x * radio)
+                punta_y = y + int(dir_normalizada.y * radio)
+                
+                # Base del cono (perpendicular a la dirección)
+                perp_x = -dir_normalizada.y * radio // 3
+                perp_y = dir_normalizada.x * radio // 3
+                
+                base1_x = x - int(perp_x)
+                base1_y = y - int(perp_y)
+                base2_x = x + int(perp_x)
+                base2_y = y + int(perp_y)
+                
+                # Dibujar punta
+                puntos_punta = [(punta_x, punta_y), (base1_x, base1_y), (base2_x, base2_y)]
+                pygame.draw.polygon(self.pantalla, color_secundario, puntos_punta)
+                
+                # Cola del misil (estabilizadores)
+                cola_x = x - int(dir_normalizada.x * radio)
+                cola_y = y - int(dir_normalizada.y * radio)
+                
+                # Estabilizadores laterales
+                estab_x1 = cola_x - int(perp_x * 2)
+                estab_y1 = cola_y - int(perp_y * 2)
+                estab_x2 = cola_x + int(perp_x * 2)
+                estab_y2 = cola_y + int(perp_y * 2)
+                
+                pygame.draw.line(self.pantalla, color_detalle, 
+                                (cola_x, cola_y), (estab_x1, estab_y1), 3)
+                pygame.draw.line(self.pantalla, color_detalle, 
+                                (cola_x, cola_y), (estab_x2, estab_y2), 3)
+                
+                # Detalle central en el cuerpo
+                pygame.draw.line(self.pantalla, color_detalle,
+                                (centro_x - cuerpo_longitud//4, centro_y),
+                                (centro_x + cuerpo_longitud//4, centro_y), 2)
+            else:
+                # Fallback: misil simple si no hay dirección
+                pygame.draw.ellipse(self.pantalla, color_principal,
+                                  (x - radio, y - radio//2, radio*2, radio))
+                pygame.draw.circle(self.pantalla, color_secundario, (x + radio//2, y), radio//3)
 
     def __repr__(self) -> str:
         """
