@@ -6,6 +6,7 @@ from .figura import Figura
 from .jugador import Jugador
 from .enemigo import Enemigo
 from .proyectil import Proyectil
+from .moneda import Moneda
 
 class ControlJuego:
     """
@@ -75,9 +76,11 @@ class ControlJuego:
         
         self.clock = pygame.time.Clock()
         self.jugando = True
+        self.game_over = False  # Estado específico de game over
         self.tiempo_desde_ultimo_dano = 0.0
         self.cooldown_dano = 1.0  # 1 segundo de cooldown para recibir daño
-        self.enemigos = []  
+        self.enemigos = []
+        self.monedas = []  # Lista de monedas activas en el juego  
         
 # ✅ Timers para controlar aparición de enemigos
         self.tiempo_enemigo = 0.0
@@ -188,18 +191,26 @@ class ControlJuego:
         Procesa todos los eventos de pygame en el frame actual.
 
         Gestiona eventos del sistema (como QUIT) y eventos de entrada del usuario
-        (como clics del mouse para disparar).
+        (como clics del mouse para disparar y teclas para reiniciar).
 
         Notes
         -----
-        Solo el clic izquierdo del mouse está configurado para disparar.
-        El evento QUIT cambia el estado del juego para terminar el bucle principal.
+        - Clic izquierdo del mouse: disparar (solo si el juego está activo)
+        - ESPACIO o ENTER: reiniciar juego (solo en Game Over)
+        - QUIT: salir del juego
         """
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.jugando = False
+            elif event.type == pygame.KEYDOWN:
+                # Reiniciar juego con ESPACIO o ENTER cuando está en Game Over
+                if self.game_over and event.key in [pygame.K_SPACE, pygame.K_RETURN]:
+                    self.reiniciar_juego()
+                # Salir con ESC
+                elif event.key == pygame.K_ESCAPE:
+                    self.jugando = False
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1:  # Clic izquierdo
+                if event.button == 1 and not self.game_over:  # Clic izquierdo solo si no es Game Over
                     self.jugador.disparar(event.pos)
 
     def actualizar(self, dt: float) -> None:
@@ -264,13 +275,21 @@ class ControlJuego:
             self.respawnear_enemigo()
 
         # 6. Verificar fin del juego (puntos agotados)
-        if self.puntos <= 0:
+        if self.puntos <= 0 and not self.game_over:
+            self.game_over = True
             self.jugando = False
             self.puntos = 0  # Asegurar que no sea negativo
             
-        # 7. Eliminar enemigos inactivos y proyectiles inactivos
+        # 7. Actualizar y gestionar monedas
+        self._actualizar_monedas(dt)
+        
+        # 8. Verificar recolección de monedas
+        self._verificar_recoleccion_monedas()
+        
+        # 9. Eliminar enemigos inactivos, proyectiles inactivos y monedas inactivas
         self.enemigos = [e for e in self.enemigos if e.activo]
-        self.jugador.proyectiles = [p for p in self.jugador.proyectiles if p.activo]    
+        self.jugador.proyectiles = [p for p in self.jugador.proyectiles if p.activo]
+        self.monedas = [m for m in self.monedas if m.activo]    
 
     def _verificar_colisiones_proyectiles(self) -> None:
         """
@@ -292,6 +311,9 @@ class ControlJuego:
                         if not enemigo.activo:
                             self.puntos += 1  # +1 punto por eliminar completamente al enemigo
                             self.enemigos_eliminados_nivel += 1
+                            
+                            # Generar moneda de recompensa
+                            self._generar_moneda_recompensa(enemigo.x, enemigo.y)
                             
                             # Verificar si se debe subir de nivel
                             if self.enemigos_eliminados_nivel >= self.enemigos_para_siguiente_nivel:
@@ -337,6 +359,104 @@ class ControlJuego:
         nuevo.establecer_objetivo(self.jugador)
         self.enemigos.append(nuevo)
 
+    def _generar_moneda_recompensa(self, x: float, y: float) -> None:
+        """
+        Genera una moneda de recompensa en la posición donde fue eliminado el enemigo.
+        
+        Parameters
+        ----------
+        x : float
+            Posición horizontal donde se eliminó el enemigo
+        y : float
+            Posición vertical donde se eliminó el enemigo
+        """
+        # Determinar el valor de la moneda basado en el nivel
+        valor_base = min(3, self.nivel_actual // 2 + 1)  # Más valor en niveles altos
+        
+        # Crear moneda con tipo aleatorio
+        moneda = Moneda(self.pantalla, x, y, tipo_mejora=None, valor_mejora=valor_base)
+        self.monedas.append(moneda)
+
+    def _actualizar_monedas(self, dt: float) -> None:
+        """
+        Actualiza el estado de todas las monedas activas.
+        
+        Parameters
+        ----------
+        dt : float
+            Tiempo transcurrido desde la última actualización en segundos
+        """
+        for moneda in self.monedas:
+            if moneda.activo:
+                moneda.actualizar(dt)
+
+    def _verificar_recoleccion_monedas(self) -> None:
+        """
+        Verifica si el jugador ha recolectado alguna moneda y aplica las mejoras.
+        """
+        for moneda in self.monedas[:]:  # Copia para iteración segura
+            if moneda.activo and self.jugador.colision(moneda):
+                # Recolectar la moneda
+                mejora = moneda.recolectar()
+                
+                # Aplicar la mejora al jugador
+                mensaje = self.jugador.aplicar_mejora(mejora['tipo'], mejora['valor'])
+                
+                # Añadir puntos si corresponde
+                if mejora['puntos'] > 0:
+                    self.puntos += mejora['puntos']
+                
+                # Mostrar mensaje de mejora (opcional - se puede implementar en UI)
+                print(f"¡{mensaje}")
+                
+                # Remover la moneda de la lista
+                self.monedas.remove(moneda)
+
+    def reiniciar_juego(self) -> None:
+        """
+        Reinicia el juego volviendo al estado inicial.
+        
+        Resetea todos los valores del juego a su estado inicial y reinicia
+        la partida desde el nivel 1.
+        """
+        # Resetear estado del juego
+        self.game_over = False
+        self.jugando = True
+        self.puntos = 10
+        
+        # Resetear sistema de niveles
+        self.nivel_actual = 1
+        self.enemigos_eliminados_nivel = 0
+        self.enemigos_para_siguiente_nivel = 3
+        self.intervalo_enemigo = 5.0
+        
+        # Resetear fondo
+        self.fondo_actual = 0
+        self.actualizar_fondo()
+        
+        # Limpiar listas
+        self.enemigos.clear()
+        self.monedas.clear()
+        if self.jugador:
+            self.jugador.proyectiles.clear()
+        
+        # Resetear mejoras del jugador
+        if self.jugador:
+            self.jugador.mejoras = {
+                'velocidad_misil': 1.0,
+                'daño_misil': 1,
+                'rapidez_disparo': 1.0,
+                'puntos_extra': 0
+            }
+            self.jugador.cooldown_disparo = 0.3
+        
+        # Resetear timers
+        self.tiempo_desde_ultimo_dano = 0.0
+        self.tiempo_enemigo = 0.0
+        
+        # Reinicializar juego
+        self.inicializar_juego()
+
     def pintar(self) -> None:
         """
         Renderiza todos los elementos del juego en la pantalla.
@@ -354,7 +474,7 @@ class ControlJuego:
 
         if self.jugando:
             self._pintar_juego_activo()
-        else:
+        elif self.game_over:
             self._pintar_game_over()
 
         # Actualizar la pantalla completa
@@ -378,6 +498,11 @@ class ControlJuego:
         for enemigo in self.enemigos:
              if enemigo.activo:
                 enemigo.pintar()
+        
+        # Pintar monedas
+        for moneda in self.monedas:
+            if moneda.activo:
+                moneda.pintar()
 
         # Mostrar información del juego
         texto_puntos = self.fuente.render(f"Puntos: {self.puntos}", True, (255, 255, 255))
@@ -392,10 +517,31 @@ class ControlJuego:
         texto_progreso = self.fuente_pequena.render(progreso, True, (200, 200, 200))
         self.pantalla.blit(texto_progreso, (10, 90))
 
+        # Mostrar mejoras del jugador
+        mejoras = self.jugador.obtener_estado_mejoras()
+        y_offset = 120
+        for tipo_mejora, valor in mejoras.items():
+            if valor != 1.0 and valor != 0:  # Solo mostrar mejoras aplicadas
+                nombre_mejora = tipo_mejora.replace('_', ' ').title()
+                if tipo_mejora == 'velocidad_misil':
+                    texto_mejora = f"Velocidad Misiles: {valor:.1f}x"
+                elif tipo_mejora == 'daño_misil':
+                    texto_mejora = f"Daño Extra: +{valor}"
+                elif tipo_mejora == 'rapidez_disparo':
+                    texto_mejora = f"Cooldown: {self.jugador.cooldown_disparo:.2f}s"
+                elif tipo_mejora == 'puntos_extra':
+                    texto_mejora = f"Puntos Extra: +{valor}"
+                else:
+                    texto_mejora = f"{nombre_mejora}: {valor}"
+                
+                texto_mejora_render = self.fuente_pequena.render(texto_mejora, True, (100, 255, 100))
+                self.pantalla.blit(texto_mejora_render, (10, y_offset))
+                y_offset += 20
+
         # Mostrar instrucciones de control
         texto_instrucciones = self.fuente_pequena.render(
-            "Mueve con mouse - Clic izquierdo para disparar", True, (200, 200, 200))
-        self.pantalla.blit(texto_instrucciones, (10, 120))
+            "Mueve con mouse - Clic izquierdo para disparar - Recolecta monedas para mejoras", True, (200, 200, 200))
+        self.pantalla.blit(texto_instrucciones, (10, y_offset + 10))
 
     def _pintar_game_over(self) -> None:
         """
@@ -404,19 +550,34 @@ class ControlJuego:
         Muestra:
         - Texto "GAME OVER" centrado
         - Puntuación final obtenida
+        - Instrucciones para reiniciar
         """
         # Texto principal de Game Over
         texto_game_over = self.fuente.render("GAME OVER", True, (255, 0, 0))
         texto_rect = texto_game_over.get_rect(
-            center=(self.pantalla.get_width() // 2, self.pantalla.get_height() // 2))
+            center=(self.pantalla.get_width() // 2, self.pantalla.get_height() // 2 - 60))
         self.pantalla.blit(texto_game_over, texto_rect)
 
         # Puntuación final
         texto_puntos_final = self.fuente.render(
             f"Puntos finales: {self.puntos}", True, (255, 255, 255))
         puntos_rect = texto_puntos_final.get_rect(
-            center=(self.pantalla.get_width() // 2, self.pantalla.get_height() // 2 + 40))
+            center=(self.pantalla.get_width() // 2, self.pantalla.get_height() // 2 - 20))
         self.pantalla.blit(texto_puntos_final, puntos_rect)
+        
+        # Instrucciones para reiniciar
+        texto_reiniciar = self.fuente_pequena.render(
+            "Presiona ESPACIO o ENTER para reiniciar", True, (200, 200, 200))
+        reiniciar_rect = texto_reiniciar.get_rect(
+            center=(self.pantalla.get_width() // 2, self.pantalla.get_height() // 2 + 20))
+        self.pantalla.blit(texto_reiniciar, reiniciar_rect)
+        
+        # Instrucciones para salir
+        texto_salir = self.fuente_pequena.render(
+            "Presiona ESC para salir", True, (150, 150, 150))
+        salir_rect = texto_salir.get_rect(
+            center=(self.pantalla.get_width() // 2, self.pantalla.get_height() // 2 + 50))
+        self.pantalla.blit(texto_salir, salir_rect)
 
     def ejecutar(self) -> None:
         """
@@ -429,10 +590,10 @@ class ControlJuego:
         Notes
         -----
         El juego se ejecuta a aproximadamente 60 FPS.
-        Después del game over, espera 3 segundos antes de cerrar la aplicación.
+        El juego no se cierra automáticamente, permite reiniciar desde Game Over.
         """
         try:
-            while True:
+            while self.jugando or self.game_over:
                 # Calcular delta time (tiempo transcurrido desde el último frame)
                 dt = self.clock.tick(60) / 1000.0  # Convertir milisegundos a segundos
 
@@ -445,12 +606,6 @@ class ControlJuego:
 
                 # Renderizar frame actual
                 self.pintar()
-
-                # Salir después del game over
-                if not self.jugando:
-                    # Esperar 3 segundos en pantalla de game over antes de cerrar
-                    pygame.time.wait(3000)
-                    break
 
         except Exception as e:
             print(f"Error durante la ejecución del juego: {e}")
@@ -466,7 +621,12 @@ class ControlJuego:
         str
             Cadena que representa el estado actual del juego
         """
-        estado = "jugando" if self.jugando else "game over"
+        if self.jugando:
+            estado = "jugando"
+        elif self.game_over:
+            estado = "game over"
+        else:
+            estado = "inactivo"
         jugador_activo = self.jugador.activo if self.jugador else "no inicializado"
         enemigos_activos = len([e for e in self.enemigos if e.activo]) if self.enemigos else 0
         
@@ -482,5 +642,11 @@ class ControlJuego:
         str
             Descripción simplificada del estado del juego
         """
-        return f"Juego: {self.puntos} puntos - {'Activo' if self.jugando else 'Game Over'}"
+        if self.jugando:
+            estado_str = "Activo"
+        elif self.game_over:
+            estado_str = "Game Over"
+        else:
+            estado_str = "Inactivo"
+        return f"Juego: {self.puntos} puntos - {estado_str}"
 

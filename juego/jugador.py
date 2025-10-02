@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 import pygame
 
 from .vector2d import Vector2D
@@ -76,6 +76,14 @@ class Jugador(Figura):
         self.ultimo_disparo = 0.0  # Tiempo desde el último disparo
         self.cooldown_disparo = 0.3  # segundos entre disparos
         self.proyectiles: List[Proyectil] = []  # Lista de proyectiles activos
+        
+        # Sistema de mejoras para misiles
+        self.mejoras = {
+            'velocidad_misil': 1.0,      # Multiplicador de velocidad de misiles
+            'daño_misil': 1,             # Daño adicional de misiles
+            'rapidez_disparo': 1.0,      # Multiplicador de velocidad de disparo
+            'puntos_extra': 0            # Puntos adicionales por mejora
+        }
 
     def actualizar(self, dt: float) -> None:
         """
@@ -198,8 +206,10 @@ class Jugador(Figura):
             objetivo_pos[1] - self.posicion.y
         )
 
-        # Crear y almacenar nuevo proyectil
-        proyectil = Proyectil(self.pantalla, self.posicion.x, self.posicion.y, direccion)
+        # Crear y almacenar nuevo proyectil con mejoras aplicadas
+        velocidad_base = 300
+        velocidad_mejorada = velocidad_base * self.mejoras['velocidad_misil']
+        proyectil = Proyectil(self.pantalla, self.posicion.x, self.posicion.y, direccion, velocidad_mejorada)
         self.proyectiles.append(proyectil)
 
         # Reiniciar temporizador de disparo
@@ -247,6 +257,58 @@ class Jugador(Figura):
         puede_disparar = self.ultimo_disparo >= self.cooldown_disparo
         tiempo_restante = max(0.0, self.cooldown_disparo - self.ultimo_disparo)
         return (puede_disparar, tiempo_restante)
+
+    def aplicar_mejora(self, tipo_mejora: str, valor: int) -> str:
+        """
+        Aplica una mejora al jugador basada en el tipo y valor de la moneda recolectada.
+
+        Parameters
+        ----------
+        tipo_mejora : str
+            Tipo de mejora ('velocidad', 'daño', 'rapidez_disparo', 'puntos')
+        valor : int
+            Valor de la mejora a aplicar
+
+        Returns
+        -------
+        str
+            Mensaje descriptivo de la mejora aplicada
+
+        Examples
+        --------
+        >>> mensaje = jugador.aplicar_mejora('velocidad', 2)
+        >>> print(mensaje)  # "¡Velocidad de misiles aumentada +2!"
+        """
+        if tipo_mejora == 'velocidad':
+            self.mejoras['velocidad_misil'] += valor * 0.2  # +20% por valor
+            return f"¡Velocidad de misiles aumentada +{valor*20}%!"
+        
+        elif tipo_mejora == 'daño':
+            self.mejoras['daño_misil'] += valor
+            return f"¡Daño de misiles aumentado +{valor}!"
+        
+        elif tipo_mejora == 'rapidez_disparo':
+            mejora_cooldown = valor * 0.05  # -5% por valor
+            self.cooldown_disparo = max(0.1, self.cooldown_disparo - mejora_cooldown)
+            return f"¡Velocidad de disparo aumentada +{valor*5}%!"
+        
+        elif tipo_mejora == 'puntos':
+            self.mejoras['puntos_extra'] += valor
+            return f"¡Puntos extra +{valor}!"
+        
+        else:
+            return "Mejora desconocida"
+
+    def obtener_estado_mejoras(self) -> Dict[str, float]:
+        """
+        Obtiene el estado actual de todas las mejoras del jugador.
+
+        Returns
+        -------
+        Dict[str, float]
+            Diccionario con el estado actual de las mejoras
+        """
+        return self.mejoras.copy()
 
     def __repr__(self) -> str:
         """
