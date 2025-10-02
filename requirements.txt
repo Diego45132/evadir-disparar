@@ -1,1 +1,8 @@
+# Dependencias principales del juego "Evadir y Disparar"
 pygame==2.6.1
+
+# Dependencias opcionales para desarrollo
+# typing_extensions>=4.0.0  # Para mejor soporte de tipos (Python < 3.10)
+# pytest>=7.0.0           # Para testing (desarrollo)
+# black>=22.0.0            # Para formateo de código (desarrollo)
+# flake8>=5.0.0            # Para linting (desarrollo)
