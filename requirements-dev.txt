@@ -2,13 +2,11 @@
 -r requirements.txt
 
 # Herramientas de desarrollo
-pytest>=7.0.0              # Framework de testing
-black>=22.0.0               # Formateador de código Python
-flake8>=5.0.0               # Linter para Python
-mypy>=1.0.0                 # Verificador de tipos estáticos
-isort>=5.0.0                # Organizador de imports
-
+pytest>=7.0.0              
+flake8>=5.0.0               
+mypy>=1.0.0                 
+isort>=5.0.0               
 # Herramientas opcionales
-pre-commit>=2.20.0          # Hooks de git para desarrollo
-coverage>=6.0.0             # Cobertura de código en tests
-pytest-cov>=4.0.0           # Plugin de cobertura para pytest
+pre-commit>=2.20.0          
+coverage>=6.0.0            
+pytest-cov>=4.0.0          
